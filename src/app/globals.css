@@ -1,26 +1,55 @@
 @import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* FORZAMOS EL COLOR AQUÍ DIRECTAMENTE */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #0A1D37; /* Tu azul oscuro */
+  color: #FFFFFF;            /* Texto blanco */
+  font-family: var(--font-poppins), sans-serif;
+}
+
+/* =========================================
+   UTILIDADES DE SCROLL
+   ========================================= */
+
+/* 1. NO SCROLLBAR: Oculta la barra pero permite hacer scroll (Vital para móviles) */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* 2. CUSTOM SCROLLBAR: Barra estilizada para escritorio (Sidebar y Modales) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px; /* Importante para scroll horizontal si lo hubiera */
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #111827; 
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #374151; 
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #FF3888; /* Le puse tu color rosa al hover para que se vea más pro */
+}
+
+/* =========================================
+   ESTILOS ESPECÍFICOS
+   ========================================= */
+
+.auth-bg {
+  background-color: #0A1D37;
+  background-image: radial-gradient(circle at 50% 15%, 
+      rgba(255, 51, 136, 0.4) 0%,
+      rgba(196, 0, 107, 0.1) 40%, 
+      #0A1D37 80%
+  );
+  background-repeat: no-repeat;
+  min-height: 100vh;
 }
