@@ -5,24 +5,29 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  // ⚠️ MANTENLO EN 'false' SOLO PARA LA PRUEBA DE HOY
-  disable: process.env.NODE_ENV === 'development', 
+  disable: false, // Mantenlo en false para probar Push y PWA
 });
 
 const nextConfig: NextConfig = {
-  reactStrictMode: process.env.NODE_ENV === 'development',
+  reactStrictMode: true,
 
-  // 1. ESTO ROMPE EL BUCLE INFINITO
-  // Le dice a Next.js: "No reinicies si cambia sw.js o workbox"
+  // 1. SOLUCIÓN BLINDADA PARA WINDOWS (Watch Options)
   webpack: (config) => {
     config.watchOptions = {
       ...config.watchOptions,
-      ignored: /sw\.js|workbox-.*\.js/,
+      // Usamos una lista directa de patrones para ignorar
+      ignored: [
+        '**/node_modules',
+        '**/.next',
+        '**/public/sw.js',        // Ignorar explícitamente el Service Worker
+        '**/public/workbox-*.js', // Ignorar los archivos de Workbox
+        '**/public/worker-*.js'   // Por si acaso genera este formato
+      ],
     };
     return config;
   },
 
-  // 2. ESTO PERMITE QUE TU CELULAR ENTRE SIN ERRORES (CORS)
+  // 2. HEADERS PARA QUE EL CELULAR NO TE BLOQUEE
   async headers() {
     return [
       {

@@ -55,7 +55,8 @@ export default function LoginPage() {
       }
 
       // 3. Guardar Token
-      Cookies.set("token", data.token, { expires: 1 });
+      Cookies.set("token", data.token, { expires: 365 });
+      localStorage.setItem("usuario", JSON.stringify(data.usuario));
 
       // 4. REDIRECCIÓN INTELIGENTE POR ROL
       // Si el rol es 'alumno' -> Va a su panel exclusivo

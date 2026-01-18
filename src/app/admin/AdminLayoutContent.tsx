@@ -1,57 +1,65 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "@/components/admin/Sidebar";
-import BottomNav from "@/components/admin/BottomNav";
-import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
+import Header from "@/components/admin/Header";
+import { SidebarProvider } from "@/context/SidebarContext";
+import { useRouter, usePathname } from "next/navigation";
 
-// Componente interno para manejar el botón del menú móvil
-function MobileHeader() {
-  const { toggleSidebar } = useSidebar();
-  
-  return (
-    <div className="md:hidden flex items-center justify-between px-4 py-3 bg-[#111827] border-b border-gray-800 sticky top-0 z-30 shadow-md">
-      <div className="flex items-center gap-3">
-        <button 
-          onClick={toggleSidebar}
-          className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-800 text-gray-300 hover:text-white active:scale-95 transition-all"
-        >
-          <i className="fas fa-bars text-xl"></i>
-        </button>
-        <span className="text-white font-bold tracking-wide">Panel Admin</span>
-      </div>
-      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#C4006B] to-[#FF3888] flex items-center justify-center text-white text-xs font-bold">
-        FI
-      </div>
-    </div>
-  );
-}
+export default function AdminLayoutContent({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
-export default function AdminLayoutContent({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    // 1. Verificar si hay token
+    const token = document.cookie.includes("token="); // O tu lógica de cookies
+    
+    // 2. Recuperar usuario del localStorage
+    const storedUser = localStorage.getItem("usuario");
+    
+    if (!storedUser) {
+      router.push("/");
+      return;
+    }
+
+    try {
+      const user = JSON.parse(storedUser);
+      
+      // 🚨 AQUÍ ESTÁ LA CLAVE: Permitimos 'admin' Y 'recepcionista'
+      if (['admin', 'recepcionista'].includes(user.rol)) {
+        setIsAuthorized(true);
+      } else {
+        // Si es alumno o cualquier otro rol raro, va para afuera
+        router.push("/alumno/dashboard");
+      }
+    } catch (error) {
+      console.error("Error validando sesión:", error);
+      router.push("/");
+    }
+  }, [router, pathname]);
+
+  if (!isAuthorized) {
+    return null; // O un spinner de carga
+  }
+
   return (
     <SidebarProvider>
-      <div className="flex h-screen overflow-hidden bg-[#0A1D37]">
-        
-        {/* 1. SIDEBAR (Izquierda - Controlado por el Contexto) */}
+      <div className="flex h-screen bg-[#111827] overflow-hidden">
+        {/* Sidebar Inteligente (ya lo configuramos antes) */}
         <Sidebar />
-
-        {/* 2. CONTENIDO PRINCIPAL (Derecha) */}
-        <main className="flex-1 flex flex-col h-full relative overflow-hidden">
+        
+        <div className="flex-1 flex flex-col md:ml-64 transition-all duration-300">
+          {/* Header Dinámico (lo configuramos abajo) */}
+          <Header />
           
-          {/* Header Móvil (Botón Hamburguesa) */}
-          <MobileHeader />
-
-          {/* AQUÍ SE RENDERIZAN TUS PÁGINAS (Dashboard, XV Años, etc.) */}
-          <div className="flex-1 overflow-y-auto p-0 pb-20 md:pb-0 scroll-smooth">
-             {children} 
-          </div>
-
-        </main>
-
-        {/* 3. BOTTOM NAV (Solo Móvil) */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50">
-           <BottomNav />
+          <main className="flex-1 overflow-y-auto bg-[#0B111D] p-4 md:p-8 relative">
+            {children}
+          </main>
         </div>
-
       </div>
     </SidebarProvider>
   );
