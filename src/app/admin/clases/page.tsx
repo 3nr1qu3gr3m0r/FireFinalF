@@ -5,6 +5,8 @@ import BottomNav from "@/components/admin/BottomNav";
 import ClassModal from "@/components/admin/classes/ClassModal";
 import CustomAlert from "@/components/ui/CustomAlert";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
+// 👇 Importamos el calendario personalizado
+import CustomDatePicker from "@/components/ui/CustomDatePicker";
 
 interface ClassItem {
   id: number;
@@ -163,23 +165,29 @@ export default function ClasesPage() {
         </span>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 mb-8">
-        <div className="flex items-center gap-2 bg-[#1E293B] p-2 rounded-full border border-gray-700 shadow-sm">
-            <span className="text-gray-400 font-bold ml-3 text-sm">Fecha:</span>
-            <input 
-                type="date" 
-                className="bg-transparent text-white text-sm outline-none font-semibold cursor-pointer"
+      {/* BARRA DE FILTROS */}
+      <div className="flex flex-col md:flex-row gap-4 mb-8 items-start md:items-center">
+        
+        {/* 👇 FILTRO DE FECHA CON CALENDARIO PERSONALIZADO */}
+        <div className="w-full md:w-72 relative z-20">
+            <CustomDatePicker 
                 value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                onChange={(date) => setSelectedDate(date)}
+                placeholder="Filtrar por fecha..."
             />
+            {/* Botón para limpiar el filtro si hay fecha seleccionada */}
             {selectedDate && (
-                <button onClick={() => setSelectedDate('')} className="text-gray-400 hover:text-white px-2">
-                    <i className="fas fa-times"></i>
+                <button 
+                    onClick={() => setSelectedDate('')} 
+                    className="text-xs text-[#FF3888] font-bold mt-2 ml-1 hover:text-white transition-colors flex items-center gap-1 animate-in fade-in"
+                >
+                    <i className="fas fa-times"></i> Borrar filtro de fecha
                 </button>
             )}
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 custom-scrollbar">
+        {/* FILTRO DE NIVELES (Carrusel) */}
+        <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 custom-scrollbar w-full">
             <button 
                 onClick={() => setSelectedLevel('all')}
                 className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
@@ -212,7 +220,7 @@ export default function ClasesPage() {
             <p className="text-white">Cargando clases...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 relative z-0">
             {filteredClasses.map((cls) => (
                 <div key={cls.id} className="bg-[#1E293B] rounded-2xl overflow-hidden flex flex-col justify-between shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group border border-gray-800 relative">
                     

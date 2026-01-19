@@ -15,18 +15,13 @@ export default function BottomNav() {
         try {
             const parsed = JSON.parse(storedUser);
             setUserRole(parsed.rol || 'alumno');
-        } catch (e) {
-            console.error("Error leyendo usuario en BottomNav");
-        }
+        } catch (e) { console.error("Error leyendo usuario"); }
     }
   }, []);
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(path);
 
   if (!isMounted) return null;
-
-  // 🚨 IMPORTANTE: Aquí NO debe haber ningún "return null" para xv-anos o clases.
-  // Si tenías un bloque "if (pathname.includes... return null)", bórralo.
 
   // --- 1. SECCIÓN TIENDA ---
   if (pathname.includes('/admin/tienda')) {
@@ -42,13 +37,16 @@ export default function BottomNav() {
     );
   }
 
-  // --- 2. SECCIÓN PLANES ---
-  if (pathname.includes('/admin/paquetes') || pathname.includes('/admin/agregar-paquete')) {
+  // --- 2. SECCIÓN PLANES (SOLO VISUAL) ---
+  // 👇 CAMBIO: Ahora es igual que Clases/XV Años (Sin botones, solo título)
+  if (pathname.includes('/admin/paquetes')) {
     return (
       <footer className="fixed bottom-0 left-0 w-full z-50 bg-gradient-to-l from-[#0A1D37] to-[#C4006B] border-t border-gray-700/50 pb-safe shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
-        <div className="grid grid-cols-2 h-16 items-center max-w-4xl mx-auto px-2">
-           <NavButton href="/admin/paquetes" icon="fa-eye" label="Consultar" active={isActive("/admin/paquetes")} />
-           <NavButton href="/admin/agregar-paquete" icon="fa-plus-circle" label="Agregar" active={isActive("/admin/agregar-paquete")} />
+        <div className="flex h-16 items-center justify-center max-w-4xl mx-auto px-2">
+           <span className="text-white/80 font-bold uppercase tracking-widest text-xs flex items-center gap-2 animate-pulse">
+              <i className="fas fa-box-open text-lg"></i>
+              Gestión de Planes
+           </span>
         </div>
       </footer>
     );
@@ -93,7 +91,6 @@ export default function BottomNav() {
   }
 
   // --- 6. SECCIÓN XV AÑOS (VISUAL) ---
-  // 👇 Esto no funcionará si arriba hay un "if exclude return null"
   if (pathname.includes('/admin/xv-anos')) {
     return (
       <footer className="fixed bottom-0 left-0 w-full z-50 bg-gradient-to-l from-[#0A1D37] to-[#C4006B] border-t border-gray-700/50 pb-safe shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
