@@ -211,7 +211,6 @@ export default function TiendaPage() {
         onClose={() => setAlert(prev => ({ ...prev, show: false }))}
       />
 
-      <StoreBottomNav />
     </div>
   );
 }

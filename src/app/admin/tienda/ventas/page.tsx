@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import StoreBottomNav from "@/components/admin/tienda/StoreBottomNav";
 import CustomAlert from "@/components/ui/CustomAlert";
-import Cookies from "js-cookie";
-import { useRouter } from "next/navigation";
+import { fetchWithAuth } from "@/lib/api"; // 👈 IMPORTANTE: Usamos nuestra API segura
 
 // Interfaces
 interface Product {
@@ -34,10 +34,17 @@ export default function RegistrarVentaPage() {
 
   // Cargar productos
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/products`)
-      .then(res => res.json())
-      .then(data => setProducts(data))
-      .catch(err => console.error(err));
+    const loadProducts = async () => {
+      try {
+        // 👇 CAMBIO: Usamos fetchWithAuth (automático y seguro)
+        const data = await fetchWithAuth('/products');
+        setProducts(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error(err);
+        showAlert("Error cargando productos", "error");
+      }
+    };
+    loadProducts();
   }, []);
 
   // --- LÓGICA DEL CARRITO ---
@@ -49,8 +56,6 @@ export default function RegistrarVentaPage() {
       }
       return [...prev, { ...product, quantity: 1 }];
     });
-    // Feedback visual opcional
-    // showAlert(`${product.nombre} agregado`, 'success'); 
   };
 
   const updateQuantity = (id: number, delta: number) => {
@@ -74,36 +79,33 @@ export default function RegistrarVentaPage() {
     if (cart.length === 0) return showAlert("El carrito está vacío", "warning");
 
     setLoading(true);
-    const token = Cookies.get("token"); // Necesitamos el token para saber QUIÉN vende
     
-    // Recuperamos usuario del localStorage para obtener su ID (opción rápida si no hay Guard estricto)
-    // O mejor, confiamos en que el backend decodifique el token.
-    // Vamos a enviar la estructura que espera el DTO
-    
+    // 👇 CAMBIO CRÍTICO: Estructura exacta que pide tu Backend DTO
     const payload = {
-        items: cart.map(item => ({ producto_id: item.id, cantidad: item.quantity })),
-        metodo_pago: paymentMethod
+        tipo_venta: 'tienda', // 👈 Requerido por CreateSaleDto
+        metodo_pago: paymentMethod,
+        items: cart.map(item => ({
+            tipo: 'producto',      // 👈 Requerido: Backend necesita saber qué es
+            id_referencia: item.id,// 👈 Requerido: ID del producto
+            cantidad: item.quantity,
+            precio_final: Number(item.precio) // Opcional: Enviamos el precio actual
+        }))
     };
 
     try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sales`, {
+        const res = await fetchWithAuth('/sales', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}` // Backend debe usar JwtAuthGuard
-            },
             body: JSON.stringify(payload)
         });
 
-        if (res.ok) {
-            showAlert(`Venta registrada por $${total.toFixed(2)}`, 'success');
-            setCart([]); // Limpiar carrito
-        } else {
-            const error = await res.json();
-            showAlert(error.message || "Error al registrar venta", "error");
-        }
-    } catch (err) {
-        showAlert("Error de conexión", "error");
+        // fetchWithAuth ya lanza error si falla, así que si llegamos aquí, es éxito.
+        showAlert(`Venta registrada por $${total.toFixed(2)}`, 'success');
+        setCart([]); // Limpiar carrito
+        
+    } catch (err: any) {
+        console.error(err);
+        // Mostramos el mensaje exacto que viene del backend (ej: "Producto no encontrado")
+        showAlert(err.message || "Error al registrar venta", "error");
     } finally {
         setLoading(false);
     }
@@ -164,7 +166,7 @@ export default function RegistrarVentaPage() {
         ))}
       </div>
 
-      {/* RESUMEN DE VENTA (Sticky Bottom o Sección fija) */}
+      {/* RESUMEN DE VENTA */}
       <div className="bg-[#111827] border border-gray-800 rounded-2xl p-6 shadow-2xl">
         <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
             <i className="fas fa-shopping-cart text-[#FF3888]"></i> Resumen
@@ -242,7 +244,6 @@ export default function RegistrarVentaPage() {
         onClose={() => setAlert(prev => ({ ...prev, show: false }))} 
       />
       
-      <StoreBottomNav />
     </div>
   );
 }

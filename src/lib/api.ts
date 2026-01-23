@@ -1,34 +1,46 @@
-// frontend/src/lib/api.ts
-import Cookies from 'js-cookie'; // 👈 Importamos la librería
+import Cookies from 'js-cookie';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 export async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
-  // 👇 CAMBIO CLAVE: Leer el token desde las Cookies, no de localStorage
-  const token = Cookies.get('token'); 
+  const token = Cookies.get('token');
 
+  // 👇 DETECCIÓN INTELIGENTE: Si es FormData (archivos), no forzamos JSON
+  const isFormData = options.body instanceof FormData;
+  
   const headers: any = {
-    'Content-Type': 'application/json',
+    // Solo agregamos Content-Type json si NO es un archivo
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...options.headers,
   };
 
-  // Si hay token, lo agregamos al Header Authorization
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
 
-  // Si el backend dice "No autorizado" (Token vencido o falso)
-  if (response.status === 401) {
-    Cookies.remove('token'); // Borramos la cookie corrupta
-    if (typeof window !== 'undefined') {
-        window.location.href = '/'; // Redirigir al Login
+    if (response.status === 401) {
+      Cookies.remove('token');
+      if (typeof window !== 'undefined') window.location.href = '/';
+      return null;
     }
-  }
 
-  return response;
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+    }
+
+    if (response.status === 204) return null;
+
+    return await response.json();
+
+  } catch (error) {
+    console.error(`Error en fetchWithAuth [${endpoint}]:`, error);
+    throw error;
+  }
 }

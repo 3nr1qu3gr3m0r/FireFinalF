@@ -1,20 +1,18 @@
-// File: frontend/src/app/alumno/dashboard/page.tsx
 'use client';
 
 import { useEffect, useState, use } from 'react';
 import { fetchWithAuth } from '@/lib/api';
 import EditStudentModal from '@/components/admin/EditStudentModal';
-import ConfirmationModal from '@/components/ui/ConfirmationModal'; // 👈 Importamos el modal
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 
-// Helper para obtener rol desde el token (ya que no usamos localStorage para el user)
+// Helper para obtener rol desde el token
 const getUserRole = () => {
   if (typeof document === 'undefined') return null;
   const token = document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
   if (!token) return null;
   try {
-    // Decodificamos el payload del JWT (parte media)
     const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.rol; // Asumiendo que el backend guarda 'rol' en el token
+    return payload.rol;
   } catch (e) {
     return null;
   }
@@ -37,13 +35,14 @@ export default function StudentProfilePage({ params }: { params: Promise<{ id: s
   
   // Estados para eliminar paquete
   const [packageToDelete, setPackageToDelete] = useState<number | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false); // 👈 Nuevo estado para controlar visibilidad
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const loadData = () => {
+    // 👇 CAMBIO 1: Eliminado .then(res => res.json())
     fetchWithAuth(`/users/${id}`)
-      .then(res => res.json())
       .then(data => {
-         if(data.paquetes) {
+         // Validamos que data no sea null (por si acaso)
+         if (data && data.paquetes) {
              data.paquetes.sort((a: any, b: any) => {
                  if (a.activo === b.activo) {
                      return new Date(a.fecha_expiracion).getTime() - new Date(b.fecha_expiracion).getTime();
@@ -53,26 +52,25 @@ export default function StudentProfilePage({ params }: { params: Promise<{ id: s
          }
          setDetails(data);
       })
-      .catch(err => console.error(err));
+      .catch(err => console.error("Error cargando perfil:", err));
   };
 
   const confirmCancelPackage = async () => {
       if (!packageToDelete) return;
 
+      // 👇 CAMBIO 2: Lógica try/catch simplificada para fetchWithAuth
       try {
-          const res = await fetchWithAuth(`/users/paquetes/${packageToDelete}/cancelar`, {
+          await fetchWithAuth(`/users/paquetes/${packageToDelete}/cancelar`, {
               method: 'PATCH'
           });
 
-          if (res.ok) {
-              loadData();
-          } else {
-              const error = await res.json();
-              alert('Error al cancelar: ' + (error.message || 'Error desconocido'));
-          }
-      } catch (err) {
+          // Si llegamos aquí, fue exitoso (fetchWithAuth lanza error si falla)
+          loadData();
+          
+      } catch (err: any) {
           console.error(err);
-          alert('Error de conexión al cancelar el paquete');
+          // fetchWithAuth devuelve el mensaje de error en err.message
+          alert('Error al cancelar: ' + (err.message || 'Error desconocido'));
       } finally {
         setPackageToDelete(null);
       }
@@ -80,7 +78,6 @@ export default function StudentProfilePage({ params }: { params: Promise<{ id: s
 
   useEffect(() => {
     loadData();
-    // Verificamos si es admin al cargar
     const role = getUserRole();
     setIsAdmin(role === 'admin');
   }, [id]);

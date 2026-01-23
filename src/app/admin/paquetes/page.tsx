@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import Cookies from "js-cookie";
+// 👇 Eliminamos js-cookie y usamos fetchWithAuth
+import { fetchWithAuth } from "@/lib/api";
 import BottomNav from "@/components/admin/BottomNav";
 import PlanModal from "@/components/admin/plans/PlanModal";
 import CustomAlert from "@/components/ui/CustomAlert";
@@ -12,7 +13,7 @@ interface PlanItem {
   precio: number;
   vigencia_dias: number;
   cantidad_clases: number;
-  clases_incluidas: any[];
+  clases_incluidas: any[]; // O el tipo específico de clases si lo tienes
 }
 
 export default function PaquetesPage() {
@@ -32,56 +33,58 @@ export default function PaquetesPage() {
 
   const fetchPlans = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/plans`); // Asegúrate de crear este endpoint
-      if (res.ok) {
-        const data = await res.json();
+      // 👇 Usamos fetchWithAuth y ruta relativa
+      const data = await fetchWithAuth('/plans');
+      if (Array.isArray(data)) {
         setPlans(data);
       }
-    } catch (error) { console.error(error); } finally { setLoading(false); }
+    } catch (error) { 
+        console.error(error); 
+    } finally { 
+        setLoading(false); 
+    }
   };
 
   useEffect(() => { fetchPlans(); }, []);
 
   const handleSave = async (data: any) => {
-    const token = Cookies.get("token");
-    const method = editingPlan ? "PUT" : "POST";
-    const url = editingPlan 
-        ? `${process.env.NEXT_PUBLIC_API_URL}/plans/${editingPlan.id}`
-        : `${process.env.NEXT_PUBLIC_API_URL}/plans`;
+    const method = editingPlan ? "PATCH" : "POST"; // Generalmente PATCH para editar
+    const endpoint = editingPlan 
+        ? `/plans/${editingPlan.id}`
+        : `/plans`;
 
     try {
-        const res = await fetch(url, {
+        // 👇 fetchWithAuth maneja headers y token
+        await fetchWithAuth(endpoint, {
             method,
-            headers: { 
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
-            },
             body: JSON.stringify(data)
         });
 
-        if (res.ok) {
-            fetchPlans();
-            setIsModalOpen(false);
-            setEditingPlan(null);
-            showAlert(editingPlan ? "Plan actualizado" : "Plan creado", "success");
-        } else {
-            const errorData = await res.json();
-            const msg = Array.isArray(errorData.message) ? errorData.message[0] : errorData.message || "Error al guardar";
-            showAlert(msg, "error");
-        }
-    } catch (e) { showAlert("Error de conexión", "error"); }
+        fetchPlans();
+        setIsModalOpen(false);
+        setEditingPlan(null);
+        showAlert(editingPlan ? "Plan actualizado" : "Plan creado", "success");
+    } catch (e: any) { 
+        // fetchWithAuth lanza error con el mensaje del backend
+        showAlert(e.message || "Error al guardar", "error"); 
+    }
   };
 
   const handleDelete = async () => {
-    const token = Cookies.get("token");
     try {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/plans/${confirmModal.id}`, {
-            method: "DELETE",
-            headers: { "Authorization": `Bearer ${token}` }
+        // 👇 fetchWithAuth
+        await fetchWithAuth(`/plans/${confirmModal.id}`, {
+            method: "DELETE"
         });
+        
         setPlans(plans.filter(p => p.id !== confirmModal.id));
         showAlert("Plan eliminado", "success");
-    } catch (e) { console.error(e); }
+    } catch (e: any) { 
+        console.error(e); 
+        showAlert(e.message || "Error al eliminar", "error");
+    } finally {
+        setConfirmModal({ isOpen: false, id: 0 });
+    }
   };
 
   return (
@@ -94,7 +97,9 @@ export default function PaquetesPage() {
       </div>
 
       {loading ? (
-        <p className="text-white text-center mt-10">Cargando planes...</p>
+        <div className="flex justify-center py-20 opacity-50">
+            <i className="fas fa-circle-notch fa-spin text-4xl text-[#FF3888]"></i>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {plans.map((pkg) => (
@@ -112,15 +117,18 @@ export default function PaquetesPage() {
                                 <i className="far fa-calendar-alt text-[#C4006B]"></i>
                                 Vigencia de {pkg.vigencia_dias} días
                             </p>
-                            {/* Mostrar resumen de clases incluidas (ej: las primeras 2) */}
-                            <div className="flex flex-wrap gap-1 mt-2">
-                                {pkg.clases_incluidas.slice(0, 3).map((c: any) => (
-                                    <span key={c.id} className="text-[10px] bg-gray-700 px-2 py-0.5 rounded-full text-gray-300">{c.nombre}</span>
-                                ))}
-                                {pkg.clases_incluidas.length > 3 && (
-                                    <span className="text-[10px] text-gray-500">+{pkg.clases_incluidas.length - 3} más</span>
-                                )}
-                            </div>
+                            
+                            {/* Resumen de clases incluidas */}
+                            {pkg.clases_incluidas && pkg.clases_incluidas.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                    {pkg.clases_incluidas.slice(0, 3).map((c: any) => (
+                                        <span key={c.id} className="text-[10px] bg-gray-700 px-2 py-0.5 rounded-full text-gray-300">{c.nombre}</span>
+                                    ))}
+                                    {pkg.clases_incluidas.length > 3 && (
+                                        <span className="text-[10px] text-gray-500">+{pkg.clases_incluidas.length - 3} más</span>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -137,7 +145,7 @@ export default function PaquetesPage() {
         </div>
       )}
 
-      {/* FAB */}
+      {/* FAB (Floating Action Button) */}
       <button onClick={() => { setEditingPlan(null); setIsModalOpen(true); }} className="fixed bottom-24 right-6 w-14 h-14 md:w-16 md:h-16 rounded-full bg-gradient-to-r from-[#C4006B] to-[#FF3888] text-white text-xl md:text-2xl shadow-xl shadow-pink-900/50 hover:scale-110 transition-transform active:scale-95 flex items-center justify-center z-30 group">
         <i className="fas fa-plus group-hover:rotate-90 transition-transform duration-300"></i>
       </button>
@@ -156,7 +164,7 @@ export default function PaquetesPage() {
         onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
         onConfirm={handleDelete}
         title="¿Eliminar plan?"
-        message="Esta acción no se puede deshacer."
+        message="Esta acción archivará el plan y no estará disponible para nuevas ventas."
       />
 
       <CustomAlert isVisible={alert.show} message={alert.message} type={alert.type} onClose={() => setAlert(prev => ({ ...prev, show: false }))} />

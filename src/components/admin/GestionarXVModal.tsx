@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect } from "react";
 import CustomDatePicker from "@/components/ui/CustomDatePicker";
 import { XvContract } from "@/types/xv-anos";
 import CustomAlert from "@/components/ui/CustomAlert";
+import { fetchWithAuth } from "@/lib/api"; 
 
 interface ModalProps {
   isOpen: boolean;
@@ -17,10 +18,7 @@ export default function GestionarXVModal({ isOpen, onClose, contract, onUpdateCo
   const [newPayment, setNewPayment] = useState({ amount: '', date: '', conceptId: 'general' });
   const [loading, setLoading] = useState(false);
   
-  // Estado para la alerta personalizada
   const [alertInfo, setAlertInfo] = useState<{ show: boolean, msg: string, type: 'error' | 'success' | 'warning' }>({ show: false, msg: '', type: 'error' });
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
   useEffect(() => {
     if (isOpen) {
@@ -28,116 +26,115 @@ export default function GestionarXVModal({ isOpen, onClose, contract, onUpdateCo
     }
   }, [isOpen]);
 
-  // Función para activar el CustomAlert
   const showAlert = (msg: string, type: 'error' | 'success' | 'warning' = 'error') => {
       setAlertInfo({ show: true, msg, type });
       setTimeout(() => setAlertInfo(prev => ({ ...prev, show: false })), 4000);
   };
 
+  // Aseguramos que siempre sea un array
   const currentConcepts = contract?.concepts || [];
   const currentPayments = contract?.payments || [];
   const contractTotal = Number(contract?.contractTotal) || 0;
 
-  // Cálculos Memoizados
-  const sumRealCost = useMemo(() => currentConcepts.reduce((s, c) => s + Number(c.realCost), 0), [currentConcepts]);
+  // Calculamos conceptos pendientes de pago para el Select
+  const payableConcepts = useMemo(() => {
+      return currentConcepts.filter(c => {
+          const paid = Number(c.paid) || 0;
+          const cost = Number(c.clientCost) || 0;
+          // Solo mostramos conceptos que tengan deuda y costo mayor a 0
+          return cost > 0 && paid < cost; 
+      });
+  }, [currentConcepts]);
+
   const sumClientCost = useMemo(() => currentConcepts.reduce((s, c) => s + Number(c.clientCost), 0), [currentConcepts]);
   const totalPaid = useMemo(() => currentConcepts.reduce((s, c) => s + Number(c.paid), 0), [currentConcepts]);
   
   const remainingBalance = Math.round((contractTotal - totalPaid) * 100) / 100;
   const paymentProgress = contractTotal > 0 ? (totalPaid / contractTotal) * 100 : 0;
 
-  // --- 🛡️ FUNCIÓN DE VALIDACIÓN DE DINERO ESTRICTA ---
   const isValidMoneyFormat = (val: string) => {
       const num = Number(val);
-      // 1. Debe ser número
       if (val === '' || isNaN(num)) return false;
-      // 2. Si tiene decimales, máximo 2
       if (val.includes('.')) {
           const decimals = val.split('.')[1];
           if (decimals.length > 2) return false;
       }
-      // 3. Bloquear valores microscópicos (ej: 0.0001)
-      // Permitimos 0 exacto (para casos de regalo), pero si es mayor a 0, debe ser al menos 0.01
       if (num !== 0 && num < 0.01) return false;
-      
       return true;
   };
 
-  // --- LÓGICA CONCEPTO ---
+  // --- AGREGAR CONCEPTO ---
   const handleAddConcept = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contract) return;
 
-    // 1. Validar campos vacíos
     if (!newConcept.name.trim()) return showAlert("Escribe un nombre para el concepto.");
-    if (newConcept.client === '' || newConcept.real === '') return showAlert("Ingresa los montos (pueden ser 0).");
+    if (newConcept.client === '' || newConcept.real === '') return showAlert("Ingresa los montos.");
 
-    // 2. Validación Estricta de Formato
-    if (!isValidMoneyFormat(newConcept.client)) return showAlert("Monto de Venta inválido (máx 2 decimales, no valores microscópicos).");
-    if (!isValidMoneyFormat(newConcept.real)) return showAlert("Monto de Gasto inválido (máx 2 decimales, no valores microscópicos).");
+    if (!isValidMoneyFormat(newConcept.client)) return showAlert("Monto de Venta inválido.");
+    if (!isValidMoneyFormat(newConcept.real)) return showAlert("Monto de Gasto inválido.");
     
-    // 3. Convertir
     const newClientPrice = Number(newConcept.client);
     const newRealPrice = Number(newConcept.real);
     
-    // 4. Validaciones de Negocio
     if (newClientPrice < 0 || newRealPrice < 0) return showAlert("Los montos no pueden ser negativos.");
-    if (newClientPrice === 0 && newRealPrice === 0) return showAlert("El concepto no puede valer $0 en gasto y $0 en venta.");
+    if (newClientPrice === 0 && newRealPrice === 0) return showAlert("El concepto no puede valer $0.");
     
     const availableBudget = Math.round((contractTotal - sumClientCost) * 100) / 100;
-    if (newClientPrice > availableBudget) return showAlert(`No puedes agregar $${newClientPrice}. Solo quedan $${availableBudget} disponibles en el contrato.`);
+    if (newClientPrice > availableBudget) return showAlert(`Solo quedan $${availableBudget} disponibles.`);
     
-    if (newRealPrice > 99999999 || newClientPrice > 99999999) return showAlert("Monto excede el límite permitido.");
+    if (newRealPrice > 99999999 || newClientPrice > 99999999) return showAlert("Monto excede el límite.");
 
     setLoading(true);
     try {
-        const res = await fetch(`${API_URL}/xv-anos/${contract.id}/concepts`, {
+        await fetchWithAuth(`/xv-anos/${contract.id}/concepts`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: newConcept.name, realCost: newRealPrice, clientCost: newClientPrice })
         });
-        if (!res.ok) { const err = await res.json(); return showAlert(err.message); }
 
-        const updatedContractRes = await fetch(`${API_URL}/xv-anos/${contract.id}`);
-        const updatedContract = await updatedContractRes.json();
-        // Asegurar tipos numéricos
-        updatedContract.concepts = updatedContract.concepts.map((c: any) => ({...c, realCost: Number(c.realCost), clientCost: Number(c.clientCost), paid: Number(c.paid)}));
+        // Recargamos el contrato completo para actualizar la lista y los selects
+        const updatedContract = await fetchWithAuth(`/xv-anos/${contract.id}`);
+        
+        // Mapeo de tipos para asegurar números
+        updatedContract.concepts = updatedContract.concepts.map((c: any) => ({
+            ...c, 
+            realCost: Number(c.realCost), 
+            clientCost: Number(c.clientCost), 
+            paid: Number(c.paid)
+        }));
+        updatedContract.payments = updatedContract.payments?.map((p: any) => ({...p, amount: Number(p.amount) })) || [];
+        
         onUpdateContract(updatedContract);
         setNewConcept({ name: '', real: '', client: '' });
         showAlert("Concepto agregado correctamente", "success");
-    } catch (error) { showAlert("Error de conexión"); } finally { setLoading(false); }
+    } catch (error: any) { 
+        showAlert(error.message || "Error de conexión"); 
+    } finally { 
+        setLoading(false); 
+    }
   };
 
-  // --- LÓGICA PAGO ---
+  // --- AGREGAR PAGO ---
   const handleAddPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contract) return;
 
-    // 1. Validar campos vacíos
     if (!newPayment.amount) return showAlert("Ingresa el monto del abono.");
-
-    // 2. Validación Estricta de Formato
-    if (!isValidMoneyFormat(newPayment.amount)) {
-        return showAlert("Formato inválido. Máximo 2 decimales (ej: 150.50).");
-    }
+    if (!isValidMoneyFormat(newPayment.amount)) return showAlert("Formato inválido.");
     
-    // 3. Convertir
     const amount = Number(newPayment.amount);
-
-    // 4. Validaciones de Negocio
     if (amount < 0.01) return showAlert("El abono debe ser de al menos $0.01.");
     if (amount > 99999999) return showAlert("Monto inválido.");
 
     const paymentDate = new Date(newPayment.date + "T00:00:00");
     const contractDate = contract.createdAt ? new Date(contract.createdAt) : new Date("2000-01-01");
     contractDate.setHours(0,0,0,0);
-    if (paymentDate < contractDate) return showAlert("La fecha del abono no puede ser anterior a la creación del contrato.");
+    if (paymentDate < contractDate) return showAlert("La fecha es anterior a la creación del contrato.");
 
-    if (amount > remainingBalance) return showAlert(`El abono ($${amount}) excede la deuda total ($${remainingBalance}).`);
+    if (amount > remainingBalance) return showAlert(`El abono excede la deuda total ($${remainingBalance}).`);
 
     if (newPayment.conceptId !== 'general') {
-        const targetId = Number(newPayment.conceptId);
-        const targetConcept = currentConcepts.find(c => c.id === targetId);
+        const targetConcept = currentConcepts.find(c => String(c.id) === String(newPayment.conceptId));
         if (targetConcept) {
             const debt = Math.round((Number(targetConcept.clientCost) - Number(targetConcept.paid)) * 100) / 100;
             if (amount > debt) return showAlert(`El concepto "${targetConcept.name}" solo debe $${debt}.`);
@@ -146,21 +143,30 @@ export default function GestionarXVModal({ isOpen, onClose, contract, onUpdateCo
 
     setLoading(true);
     try {
-        const res = await fetch(`${API_URL}/xv-anos/${contract.id}/payments`, {
+        await fetchWithAuth(`/xv-anos/${contract.id}/payments`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount, date: newPayment.date, conceptId: newPayment.conceptId })
         });
-        if (!res.ok) { const err = await res.json(); return showAlert(err.message); }
 
-        const updatedContract = await res.json();
+        const updatedContract = await fetchWithAuth(`/xv-anos/${contract.id}`);
+        
         updatedContract.contractTotal = Number(updatedContract.contractTotal);
-        updatedContract.concepts = updatedContract.concepts.map((c: any) => ({...c, realCost: Number(c.realCost), clientCost: Number(c.clientCost), paid: Number(c.paid)}));
+        updatedContract.concepts = updatedContract.concepts.map((c: any) => ({
+            ...c, 
+            realCost: Number(c.realCost), 
+            clientCost: Number(c.clientCost), 
+            paid: Number(c.paid)
+        }));
         updatedContract.payments = updatedContract.payments.map((p: any) => ({...p, amount: Number(p.amount)}));
+        
         onUpdateContract(updatedContract);
         setNewPayment({ ...newPayment, amount: '' });
         showAlert("Pago registrado correctamente", "success");
-    } catch (error) { showAlert("Error de conexión"); } finally { setLoading(false); }
+    } catch (error: any) { 
+        showAlert(error.message || "Error de conexión"); 
+    } finally { 
+        setLoading(false); 
+    }
   };
 
   if (!isOpen || !contract) return null;
@@ -168,7 +174,6 @@ export default function GestionarXVModal({ isOpen, onClose, contract, onUpdateCo
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-4 animate-in fade-in duration-200">
       
-      {/* 🔔 Renderizado de la Alerta Personalizada */}
       <CustomAlert isVisible={alertInfo.show} message={alertInfo.msg} type={alertInfo.type} onClose={() => setAlertInfo(prev => ({...prev, show: false}))} />
 
       <div className="bg-[#111827] w-full h-[100dvh] sm:h-[90vh] sm:max-w-4xl flex flex-col rounded-none sm:rounded-3xl border-0 sm:border border-gray-700 shadow-[0_0_60px_rgba(0,0,0,0.8)] overflow-hidden">
@@ -178,7 +183,7 @@ export default function GestionarXVModal({ isOpen, onClose, contract, onUpdateCo
             <div className="flex justify-between items-center mb-4">
                 <div className="truncate pr-4">
                     <h2 className="text-xl font-bold text-white truncate flex items-center gap-3">
-                         {contract.studentName}
+                         {contract.studentName || contract.quinceanera_nombre}
                          {remainingBalance <= 0 
                             ? <span className="text-[10px] bg-green-900/30 text-green-400 px-2 py-0.5 rounded border border-green-600 uppercase tracking-widest font-bold">Pagado</span>
                             : <span className="text-[10px] bg-blue-900/30 text-blue-400 px-2 py-0.5 rounded border border-blue-600 uppercase tracking-widest font-bold">Activo</span>
@@ -199,9 +204,7 @@ export default function GestionarXVModal({ isOpen, onClose, contract, onUpdateCo
             
             {activeTab === 'concepts' && (
                 <>
-                    {/* FORMULARIO AGREGAR CONCEPTO */}
                     <div className="p-5 bg-[#1F2937]/30 border-b border-gray-800 shrink-0">
-                        {/* 👇 AGREGADO: noValidate para evitar burbujas del navegador */}
                         <form onSubmit={handleAddConcept} className="flex flex-col sm:flex-row gap-3" noValidate>
                             <div className="flex-[2] relative group">
                                 <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 ml-1 block sm:hidden">Concepto</label>
@@ -221,7 +224,6 @@ export default function GestionarXVModal({ isOpen, onClose, contract, onUpdateCo
                         </form>
                     </div>
 
-                    {/* LISTA CONCEPTOS */}
                     <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
                         {currentConcepts.length === 0 && <div className="text-center py-10 opacity-50"><i className="fas fa-tags text-3xl mb-2"></i><p className="text-xs">Sin conceptos</p></div>}
                         {currentConcepts.map(c => {
@@ -245,9 +247,7 @@ export default function GestionarXVModal({ isOpen, onClose, contract, onUpdateCo
 
             {activeTab === 'payments' && (
                 <>
-                    {/* FORMULARIO AGREGAR PAGO */}
                     <div className="p-5 bg-[#1F2937]/40 border-b border-gray-800 shrink-0 z-20">
-                        {/* 👇 AGREGADO: noValidate */}
                         <form onSubmit={handleAddPayment} className="flex flex-col gap-4" noValidate>
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <div className="flex-1 space-y-1"><CustomDatePicker label="Fecha" value={newPayment.date} onChange={(date) => setNewPayment({...newPayment, date: date})} /></div>
@@ -259,14 +259,29 @@ export default function GestionarXVModal({ isOpen, onClose, contract, onUpdateCo
                             <div className="flex gap-3 items-end">
                                 <div className="relative flex-1 space-y-1">
                                     <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Destino</label>
-                                    <select className="w-full bg-[#111827] border border-gray-700 rounded-xl px-3 h-12 text-sm text-white focus:border-blue-500 outline-none appearance-none transition-all" value={newPayment.conceptId} onChange={e => setNewPayment({...newPayment, conceptId: e.target.value})}><option value="general">★ GENERAL (Recomendado)</option><optgroup label="Específico">{currentConcepts.filter(c => c.paid < c.clientCost).map(c => (<option key={c.id} value={c.id}>{c.name} (Resta: ${c.clientCost - c.paid})</option>))}</optgroup></select><i className="fas fa-chevron-down absolute right-4 top-9 text-xs text-gray-500 pointer-events-none"></i>
+                                    {/* 👇 AQUÍ ESTÁ LA CORRECCIÓN CLAVE DEL SELECTOR */}
+                                    <select 
+                                        className="w-full bg-[#111827] border border-gray-700 rounded-xl px-3 h-12 text-sm text-white focus:border-blue-500 outline-none appearance-none transition-all" 
+                                        value={newPayment.conceptId} 
+                                        onChange={e => setNewPayment({...newPayment, conceptId: e.target.value})}
+                                    >
+                                        <option value="general">★ GENERAL (Recomendado)</option>
+                                        <optgroup label="Conceptos Específicos">
+                                            {payableConcepts.length === 0 && <option disabled>No hay conceptos con deuda</option>}
+                                            {payableConcepts.map(c => (
+                                                <option key={c.id} value={c.id}>
+                                                    {c.name} (Resta: ${(Number(c.clientCost) - Number(c.paid)).toFixed(2)})
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    </select>
+                                    <i className="fas fa-chevron-down absolute right-4 top-9 text-xs text-gray-500 pointer-events-none"></i>
                                 </div>
                                 <button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-500 text-white w-28 h-12 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all">{loading ? "..." : "Abonar"}</button>
                             </div>
                         </form>
                     </div>
 
-                    {/* LISTA PAGOS */}
                     <div className="flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar">
                         {currentPayments.length === 0 && <div className="text-center py-10 opacity-50"><i className="fas fa-receipt text-3xl mb-2"></i><p className="text-xs">Sin pagos registrados</p></div>}
                         {[...currentPayments].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(p => (

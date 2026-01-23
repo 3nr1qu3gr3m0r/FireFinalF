@@ -1,15 +1,16 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+// 👇 Importamos fetchWithAuth
+import { fetchWithAuth } from "@/lib/api";
 
-// 👇 1. Interfaz extendida para tener todos los datos visuales
 interface ClassItem {
   id: number;
   nombre: string;
   nivel: string;
-  maestro: string;       // Nuevo
-  hora: string;          // Nuevo
-  fecha_inicio: string;  // Nuevo
-  dias_repeticion: number; // Nuevo
+  maestro: string;       
+  hora: string;          
+  fecha_inicio: string;  
+  dias_repeticion: number; 
 }
 
 interface PlanModalProps {
@@ -53,14 +54,18 @@ export default function PlanModal({ isOpen, onClose, onSubmit, initialData, onSh
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Cargar clases
+  // Cargar clases usando fetchWithAuth
   useEffect(() => {
     const fetchClasses = async () => {
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/classes`);
-            const data = await res.json();
-            setAllClasses(data);
-        } catch (e) { console.error("Error cargando clases", e); }
+            // 👇 CORRECCIÓN: Usamos fetchWithAuth
+            const data = await fetchWithAuth('/classes');
+            if (Array.isArray(data)) {
+                setAllClasses(data);
+            }
+        } catch (e) { 
+            console.error("Error cargando clases", e); 
+        }
     };
     if (isOpen) fetchClasses();
   }, [isOpen]);
@@ -74,7 +79,9 @@ export default function PlanModal({ isOpen, onClose, onSubmit, initialData, onSh
         cantidad_clases: initialData.cantidad_clases,
         vigencia_dias: initialData.vigencia_dias,
       });
+      // Mapeamos clases_incluidas o clases (según venga del backend)
       if (initialData.clases_incluidas) setSelectedClasses(initialData.clases_incluidas);
+      else if (initialData.clases) setSelectedClasses(initialData.clases);
     } else {
       setFormData({ nombre: "", precio: "", cantidad_clases: "", vigencia_dias: "30" });
       setSelectedClasses([]);
@@ -102,23 +109,18 @@ export default function PlanModal({ isOpen, onClose, onSubmit, initialData, onSh
     }
   };
 
-  // 👇 2. Helper para formatear horario (Lunes 7:00 PM)
   const formatSchedule = (cls: ClassItem) => {
     if (!cls.hora || !cls.fecha_inicio) return "";
     
-    // Formatear hora (19:00 -> 7:00 PM)
     const [h, m] = cls.hora.split(':');
     const timeStr = new Date(0, 0, 0, +h, +m).toLocaleTimeString('es-ES', { hour: 'numeric', minute: '2-digit', hour12: true });
 
-    // Determinar día
     const date = new Date(cls.fecha_inicio + 'T00:00:00');
     
     if (cls.dias_repeticion > 0) {
-        // Clase recurrente (Ej: Lunes)
         const dayName = date.toLocaleDateString('es-ES', { weekday: 'long' });
         return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${timeStr}`;
     } else {
-        // Clase única (Ej: 15 Oct)
         const dateStr = date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
         return `${dateStr} - ${timeStr}`;
     }
@@ -127,6 +129,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, initialData, onSh
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // --- VALIDACIONES INTACTAS ---
     if (!formData.nombre.trim()) return onShowAlert("El nombre del plan es obligatorio", "warning");
     if (Number(formData.precio) <= 0) return onShowAlert("El precio debe ser mayor a 0", "warning");
     
@@ -148,6 +151,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, initialData, onSh
         clasesIds: selectedClasses.map(c => c.id) 
     };
 
+    // Llamamos al onSubmit del padre (que ahora usa fetchWithAuth)
     await onSubmit(payload);
     setLoading(false);
   };
@@ -198,11 +202,10 @@ export default function PlanModal({ isOpen, onClose, onSubmit, initialData, onSh
                         value={formData.vigencia_dias} onChange={e => setFormData({...formData, vigencia_dias: e.target.value})} />
                 </div>
 
-                {/* --- SELECTOR DE CLASES --- */}
+                {/* SELECTOR DE CLASES */}
                 <div ref={dropdownRef} className="relative group">
                     <label className="block text-sm font-bold text-gray-400 mb-2">Clases Incluidas</label>
                     
-                    {/* Contenedor de Tags */}
                     <div className="bg-[#111827] border border-gray-700 rounded-xl p-2 min-h-[52px] focus-within:border-[#FF3888] transition-colors flex flex-wrap gap-2 items-center"
                          onClick={() => {
                             if (!showDropdown) setShowDropdown(true);
@@ -234,7 +237,6 @@ export default function PlanModal({ isOpen, onClose, onSubmit, initialData, onSh
                         />
                     </div>
 
-                    {/* DROPDOWN DE RESULTADOS */}
                     {showDropdown && (
                         <div className="absolute bottom-full left-0 mb-2 w-full bg-[#1E293B] border border-gray-700 rounded-xl shadow-2xl max-h-64 overflow-y-auto z-50 custom-scrollbar ring-1 ring-black/50">
                             {filteredClasses.length > 0 ? (
@@ -243,16 +245,11 @@ export default function PlanModal({ isOpen, onClose, onSubmit, initialData, onSh
                                         className="px-4 py-3 hover:bg-[#111827] cursor-pointer border-b border-gray-800 last:border-0 flex justify-between items-start group/item transition-all"
                                     >
                                         <div className="flex gap-3">
-                                            {/* Barra de color lateral */}
                                             <div className="w-1 h-10 rounded-full mt-1" style={{ backgroundColor: LEVEL_COLORS[cls.nivel] }}></div>
-                                            
-                                            {/* 👇 3. DETALLES COMPLETOS AQUÍ */}
                                             <div>
                                                 <p className="text-sm font-bold text-gray-200 group-hover/item:text-white transition-colors leading-tight">
                                                     {cls.nombre}
                                                 </p>
-                                                
-                                                {/* Info Extra: Maestro, Día, Hora */}
                                                 <div className="flex flex-col gap-0.5 mt-1">
                                                     <div className="flex items-center gap-1.5 text-[11px] text-gray-400 group-hover/item:text-gray-300">
                                                         <i className="fas fa-chalkboard-teacher text-[10px] w-3"></i> 
@@ -265,8 +262,6 @@ export default function PlanModal({ isOpen, onClose, onSubmit, initialData, onSh
                                                 </div>
                                             </div>
                                         </div>
-
-                                        {/* Badge Nivel */}
                                         <div className="flex flex-col items-end gap-2">
                                             <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700">
                                                 {LEVEL_LABELS[cls.nivel]}

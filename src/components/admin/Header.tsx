@@ -5,7 +5,7 @@ import { useSidebar } from "@/context/SidebarContext";
 import { useState, useEffect, useRef } from "react";
 import Cookies from "js-cookie";
 import { MENU_ITEMS } from "@/config/admin/menuItems";
-import { fetchWithAuth } from "@/lib/api"; // Asegúrate de importar esto
+import { fetchWithAuth } from "@/lib/api"; 
 
 export default function Header() {
   const { toggleSidebar } = useSidebar();
@@ -34,13 +34,21 @@ export default function Header() {
   // Cargar info del estudiante si estamos en modo estudiante
   useEffect(() => {
     if (isStudentMode) {
+        // Asegurarse de que pathname no sea null
+        if (!pathname) return;
+        
         const parts = pathname.split('/');
+        // La estructura es /admin/students/[id]/... el ID suele ser el índice 3
         const studentId = parts[3];
-        if (studentId) {
-            // Fetch ligero solo para el header
+        
+        if (studentId && !isNaN(Number(studentId))) {
+            // 👇 CORRECCIÓN AQUÍ: fetchWithAuth ya devuelve el JSON directo
             fetchWithAuth(`/users/${studentId}`)
-                .then(res => res.json())
-                .then(data => setStudentInfo(data))
+                .then(data => {
+                    if (data && !data.error) {
+                        setStudentInfo(data);
+                    }
+                })
                 .catch(err => console.error("Error cargando header alumno", err));
         }
     } else {
@@ -98,11 +106,11 @@ export default function Header() {
         
         {/* LÓGICA DE TÍTULO: Si es estudiante = Info Alumno, si no = Título Pagina */}
         {isStudentMode && studentInfo ? (
-             <div className="flex items-center gap-3">
+             <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2 duration-300">
                  <div className="relative">
                     <img 
                         src={studentInfo.foto_perfil || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'} 
-                        className="w-10 h-10 rounded-full border-2 border-pink-400 object-cover"
+                        className="w-10 h-10 rounded-full border-2 border-pink-400 object-cover bg-white"
                         alt="Alumno"
                     />
                     {studentInfo.nivel && (

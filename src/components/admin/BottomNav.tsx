@@ -23,10 +23,9 @@ export default function BottomNav() {
 
   if (!isMounted) return null;
 
-  // Clases comunes
   const navClasses = "fixed bottom-0 left-0 w-full z-40 bg-gradient-to-l from-[#0A1D37] to-[#C4006B] border-t border-gray-700/50 pb-safe shadow-[0_-5px_20px_rgba(0,0,0,0.5)]";
 
-  // --- 0. SECCIÓN ALUMNO (Aquí hicimos el cambio) ---
+  // --- 0. SECCIÓN ALUMNO ---
   if (pathname.includes('/admin/students/')) {
     const parts = pathname.split('/');
     const studentId = parts[3]; 
@@ -34,7 +33,6 @@ export default function BottomNav() {
 
     const tabs = [
         { name: 'Perfil', path: baseUrl, icon: 'fa-user' },
-        // 👇 CAMBIO: Ahora dice "Ventas" y apunta a la nueva página
         { name: 'Ventas', path: `${baseUrl}/payments`, icon: 'fa-cart-plus' }, 
         { name: 'Reservas', path: `${baseUrl}/bookings`, icon: 'fa-calendar-alt' },
         { name: 'Logros', path: `${baseUrl}/gamification`, icon: 'fa-medal' },
@@ -44,20 +42,9 @@ export default function BottomNav() {
         <footer className={navClasses}>
             <div className="flex justify-around items-center h-16 max-w-3xl mx-auto px-2">
                 {tabs.map((tab) => {
-                    const isTabActive = tab.path === baseUrl 
-                        ? pathname === baseUrl 
-                        : pathname.startsWith(tab.path);
-                    
+                    const isTabActive = tab.path === baseUrl ? pathname === baseUrl : pathname.startsWith(tab.path);
                     return (
-                        <Link 
-                            key={tab.path} 
-                            href={tab.path}
-                            className={`flex flex-col items-center justify-center w-full h-full transition-all duration-300 active:scale-90 group 
-                                ${isTabActive 
-                                    ? 'text-white -translate-y-1' 
-                                    : 'text-white/70 hover:text-white' 
-                                }`}
-                        >
+                        <Link key={tab.path} href={tab.path} className={`flex flex-col items-center justify-center w-full h-full transition-all duration-300 active:scale-90 group ${isTabActive ? 'text-white -translate-y-1' : 'text-white/70 hover:text-white'}`}>
                             <i className={`fas ${tab.icon} text-xl mb-1 transition-colors ${isTabActive ? 'drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]' : ''}`}></i>
                             <span className="text-[10px] font-bold uppercase tracking-wide">{tab.name}</span>
                         </Link>
@@ -68,15 +55,14 @@ export default function BottomNav() {
     );
   }
 
-  // ... (El resto de las secciones se quedan IGUAL, sin cambios)
-  // --- 1. SECCIÓN TIENDA (Dashboard) ---
-  if (pathname.includes('/admin/tienda')) {
+  // --- 1. SECCIÓN TIENDA (SOLO PARA ADMIN) ---
+  // Si eres admin y estás en tienda, ves el submenú de tienda.
+  // Si eres recepcionista, ESTO SE IGNORA y cae al default del final.
+  if (pathname.includes('/admin/tienda') && userRole === 'admin') {
     return (
       <footer className={navClasses}>
-        <div className={`grid ${userRole === 'recepcionista' ? 'grid-cols-1' : 'grid-cols-2'} h-16 items-center max-w-4xl mx-auto px-2`}>
-           {userRole !== 'recepcionista' && (
-             <NavButton href="/admin/tienda" icon="fa-box-open" label="Productos" active={pathname === "/admin/tienda"} />
-           )}
+        <div className="grid grid-cols-2 h-16 items-center max-w-4xl mx-auto px-2">
+           <NavButton href="/admin/tienda" icon="fa-box-open" label="Productos" active={pathname === "/admin/tienda"} />
            <NavButton href="/admin/tienda/ventas" icon="fa-cash-register" label="Registrar Venta" active={pathname.includes("/ventas")} />
         </div>
       </footer>
@@ -89,15 +75,14 @@ export default function BottomNav() {
       <footer className={navClasses}>
         <div className="flex h-16 items-center justify-center max-w-4xl mx-auto px-2">
            <span className="text-white/80 font-bold uppercase tracking-widest text-xs flex items-center gap-2 animate-pulse">
-              <i className="fas fa-box-open text-lg"></i>
-              Gestión de Planes
+              <i className="fas fa-box-open text-lg"></i>Gestión de Planes
            </span>
         </div>
       </footer>
     );
   }
 
-  // --- 3. SECCIÓN INSIGNIAS ---
+  // --- 3. SECCIÓN INSIGNIAS/NIVELES ---
   if (pathname.includes('/admin/insignias') || pathname.includes('/admin/niveles')) {
     return (
       <footer className={navClasses}>
@@ -127,8 +112,7 @@ export default function BottomNav() {
       <footer className={navClasses}>
         <div className="flex h-16 items-center justify-center max-w-4xl mx-auto px-2">
            <span className="text-white/80 font-bold uppercase tracking-widest text-xs flex items-center gap-2 animate-pulse">
-              <i className="fas fa-graduation-cap text-lg"></i>
-              Gestión de Clases
+              <i className="fas fa-graduation-cap text-lg"></i>Gestión de Clases
            </span>
         </div>
       </footer>
@@ -141,18 +125,20 @@ export default function BottomNav() {
       <footer className={navClasses}>
         <div className="flex h-16 items-center justify-center max-w-4xl mx-auto px-2">
            <span className="text-white/80 font-bold uppercase tracking-widest text-xs flex items-center gap-2 animate-pulse">
-              <i className="fas fa-crown text-lg"></i>
-              Gestión XV Años
+              <i className="fas fa-crown text-lg"></i>Gestión XV Años
            </span>
         </div>
       </footer>
     );
   }
 
-  // --- 7. DASHBOARD DEFAULT ---
+  // --- 7. DASHBOARD DEFAULT (Aquí cae la Recepcionista en Tienda) ---
   const storeLink = userRole === 'recepcionista' ? "/admin/tienda/ventas" : "/admin/tienda";
   const storeIcon = userRole === 'recepcionista' ? "fa-cash-register" : "fa-store";
-  const storeLabel = userRole === 'recepcionista' ? "Vender" : "Tienda";
+  const storeLabel = userRole === 'recepcionista' ? "Registrar venta (tienda)" : "Tienda";
+
+  // Lógica para saber si el botón "Tienda/Vender" debe estar activo visualmente
+  const isStoreActive = pathname.startsWith("/admin/tienda");
 
   return (
     <footer className={navClasses}>
@@ -160,7 +146,7 @@ export default function BottomNav() {
         <NavButton href="/admin/dashboard" icon="fa-home" label="Inicio" active={isActive("/admin/dashboard")} />
         <NavButton href="/admin/reservas" icon="fa-calendar-check" label="Reservas" active={isActive("/admin/reservas")} />
         <NavButton href="/admin/comunidad" icon="fa-users" label="Comunidad" active={isActive("/admin/comunidad")} />
-        <NavButton href={storeLink} icon={storeIcon} label={storeLabel} active={isActive("/admin/tienda")} />
+        <NavButton href={storeLink} icon={storeIcon} label={storeLabel} active={isStoreActive} />
       </div>
     </footer>
   );
