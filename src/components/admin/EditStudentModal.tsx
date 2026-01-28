@@ -12,11 +12,11 @@ interface EditStudentModalProps {
 }
 
 export default function EditStudentModal({ isOpen, onClose, studentData, onUpdate }: EditStudentModalProps) {
-  // 👇 ESTADO ACTUALIZADO: 'telefono' ahora es 'whatsapp'
   const [formData, setFormData] = useState({
     nombre_completo: "",
     correo: "",
-    whatsapp: "", // ✅ Coincide con tu Entity
+    whatsapp: "",
+    direccion: "", // ✅ Nuevo campo
     fecha_nacimiento: "",
     instagram: "",
     emergencia_nombre: "",
@@ -40,8 +40,8 @@ export default function EditStudentModal({ isOpen, onClose, studentData, onUpdat
       setFormData({
         nombre_completo: studentData.nombre_completo || "",
         correo: studentData.correo || "",
-        // 👇 CARGAMOS EL DATO CORRECTO
         whatsapp: studentData.whatsapp || studentData.telefono || "", 
+        direccion: studentData.direccion || "", // ✅ Cargamos dirección
         fecha_nacimiento: studentData.fecha_nacimiento ? new Date(studentData.fecha_nacimiento).toISOString().split('T')[0] : "",
         instagram: studentData.instagram || "",
         emergencia_nombre: studentData.emergencia_nombre || "",
@@ -62,7 +62,7 @@ export default function EditStudentModal({ isOpen, onClose, studentData, onUpdat
     e.preventDefault();
 
     if (!studentData?.id) {
-        showAlert("Error crítico: No se encontró el ID del alumno.", "error");
+        showAlert("Error crítico: No se encontró el ID del usuario.", "error");
         return;
     }
 
@@ -75,7 +75,6 @@ export default function EditStudentModal({ isOpen, onClose, studentData, onUpdat
         return;
     }
     
-    // 👇 VALIDACIÓN ACTUALIZADA
     if (formData.whatsapp && !isNumeric(formData.whatsapp)) {
         showAlert("El WhatsApp solo debe contener números.", "warning");
         return;
@@ -89,26 +88,20 @@ export default function EditStudentModal({ isOpen, onClose, studentData, onUpdat
     setLoading(true);
     
     try {
-        // En tu backend creamos la ruta PATCH, así que usamos PATCH aquí
-        const res = await fetchWithAuth(`/users/${studentData.id}`, {
+        await fetchWithAuth(`/users/${studentData.id}`, {
             method: 'PATCH', 
             body: JSON.stringify(formData)
         });
 
-        if (res.ok) {
-            showAlert("✅ Datos actualizados correctamente", "success");
-            setTimeout(() => {
-                onUpdate();
-                onClose();
-            }, 1500);
-        } else {
-            const errorData = await res.json();
-            console.error("❌ Error Backend:", errorData);
-            showAlert(`❌ Error: ${errorData.message || 'No se pudo actualizar'}`, "error");
-        }
-    } catch (error) {
+        showAlert("✅ Datos actualizados correctamente", "success");
+        setTimeout(() => {
+            onUpdate();
+            onClose();
+        }, 1500);
+
+    } catch (error: any) {
         console.error(error);
-        showAlert("Error de conexión con el servidor", "error");
+        showAlert(`❌ Error: ${error.message || 'No se pudo actualizar'}`, "error");
     } finally {
         setLoading(false);
     }
@@ -128,11 +121,13 @@ export default function EditStudentModal({ isOpen, onClose, studentData, onUpdat
 
         <div className="bg-[#1F2937] w-full max-w-2xl rounded-2xl border border-gray-700 shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-gray-700 flex justify-between items-center">
-                <h2 className="text-xl font-bold text-white">Editar Datos del Alumno</h2>
+                <h2 className="text-xl font-bold text-white">Editar Datos del Usuario</h2>
                 <button onClick={onClose} className="text-gray-400 hover:text-white"><i className="fas fa-times text-xl"></i></button>
             </div>
             
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar" noValidate>
+                
+                {/* BLOQUE DATOS PERSONALES */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="text-xs text-gray-400 uppercase font-bold">Nombre Completo</label>
@@ -144,7 +139,6 @@ export default function EditStudentModal({ isOpen, onClose, studentData, onUpdat
                     </div>
                     <div>
                         <label className="text-xs text-gray-400 uppercase font-bold">WhatsApp</label>
-                        {/* 👇 INPUT ACTUALIZADO: name="whatsapp" */}
                         <input name="whatsapp" type="tel" value={formData.whatsapp} onChange={handleChange} className="w-full bg-[#111827] border border-gray-600 rounded-lg p-2 text-white mt-1 outline-none focus:border-[#FF3888]" />
                     </div>
                     
@@ -158,13 +152,19 @@ export default function EditStudentModal({ isOpen, onClose, studentData, onUpdat
                     </div>
                 </div>
 
+                {/* BLOQUE EXTRA: DIRECCIÓN E INSTAGRAM */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-xs text-gray-400 uppercase font-bold">Dirección</label>
+                        <input name="direccion" value={formData.direccion} onChange={handleChange} className="w-full bg-[#111827] border border-gray-600 rounded-lg p-2 text-white mt-1 outline-none focus:border-[#FF3888]" />
+                    </div>
                     <div>
                         <label className="text-xs text-gray-400 uppercase font-bold">Instagram</label>
                         <input name="instagram" value={formData.instagram} onChange={handleChange} className="w-full bg-[#111827] border border-gray-600 rounded-lg p-2 text-white mt-1 outline-none focus:border-[#FF3888]" />
                     </div>
                 </div>
 
+                {/* BLOQUE EMERGENCIA */}
                 <div className="border-t border-gray-700 my-4 pt-4">
                     <h3 className="text-[#FF3888] font-bold mb-3 uppercase text-sm">Emergencia y Salud</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+// 🧹 Eliminamos 'js-cookie' (El Middleware protege la ruta)
 import RegistrarVisitanteModal from "@/components/admin/RegistrarVisitanteModal";
 import CustomAlert from "@/components/ui/CustomAlert"; 
 import { fetchWithAuth } from "@/lib/api"; 
@@ -12,7 +13,6 @@ export default function AdminDashboard() {
   const [isModalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Estado para la alerta personalizada
   const [alertState, setAlertState] = useState<{
     isVisible: boolean;
     message: string;
@@ -23,6 +23,9 @@ export default function AdminDashboard() {
     setAlertState({ isVisible: true, message, type });
   };
 
+  // 🧹 Eliminamos el useEffect de validación de rol.
+  // Si el usuario ve esta pantalla, es porque el Middleware ya lo autorizó.
+
   // --- LÓGICA DE BÚSQUEDA ---
   const handleSearch = async () => {
     if (!studentId.trim()) return;
@@ -30,30 +33,32 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
         let targetId = studentId;
-        const res = await fetchWithAuth(`/users/${targetId}`);
-        const data = await res.json();
         
-        if (res.ok && data.id) {
-            // Validar que sea alumno
+        // ✅ fetchWithAuth ya maneja el token y devuelve la data
+        const data = await fetchWithAuth(`/users/${targetId}`);
+        
+        if (data && data.id) {
+            // 🔒 SEGURIDAD: Mensaje Genérico
+            // Si el ID existe pero NO es alumno (ej: es admin), no revelamos qué es.
             if (data.rol !== 'alumno') {
-                showAlert(`El ID ${targetId} pertenece a un ${data.rol} (No permitido).`, "warning");
+                showAlert("El ID ingresado no pertenece a un alumno válido.", "warning");
                 setLoading(false);
                 return;
             }
-            // Redirigir
+            // Si es alumno, procedemos
             router.push(`/admin/students/${data.id}`);
         } else {
-            showAlert(data.message || "Usuario no encontrado. Verifica el ID.", "error");
+            showAlert("Usuario no encontrado.", "error");
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error buscando alumno:", error);
-        showAlert("Error de conexión con el servidor.", "error");
+        // Mensaje genérico para no dar pistas en caso de error
+        showAlert("No se pudo encontrar un alumno con ese ID.", "error");
     } finally {
         setLoading(false);
     }
   };
 
-  // --- LÓGICA DEL TECLADO ---
   const handleKeypadClick = (key: string | number) => {
     if (key === "C") {
         setStudentId("");
@@ -71,10 +76,9 @@ export default function AdminDashboard() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-140px)] w-full p-6 animate-fade-in">
         
-        {/* --- CONTENEDOR PRINCIPAL --- */}
         <div className="w-full max-w-xs sm:max-w-sm space-y-6">
             
-            {/* 1. INPUT BUSCADOR */}
+            {/* INPUT BUSCADOR */}
             <div className="space-y-4">
                 <div className="relative group">
                     <input 
@@ -94,7 +98,7 @@ export default function AdminDashboard() {
                     </button>
                 </div>
 
-                {/* 2. TECLADO NUMÉRICO */}
+                {/* TECLADO */}
                 <div>
                     <div className="grid grid-cols-3 gap-3">
                         {[1,2,3,4,5,6,7,8,9,'C',0,'OK'].map(key => {
@@ -134,7 +138,7 @@ export default function AdminDashboard() {
             </button>
         </div>
 
-        {/* --- MODALES Y ALERTAS --- */}
+        {/* MODALES Y ALERTAS */}
         <RegistrarVisitanteModal 
             isOpen={isModalOpen} 
             onClose={() => setModalOpen(false)} 

@@ -152,7 +152,7 @@ export default function Header() {
             {isProfileOpen && (
                 <div className="absolute top-full right-0 mt-3 w-48 bg-[#1E293B] border border-gray-700 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200">
                     <div className="p-2">
-                        <Link href="/admin/perfil" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-colors mb-1">
+                        <Link href="/perfil" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-colors mb-1">
                             <i className="fas fa-user-cog"></i> Mi Perfil
                         </Link>
                         <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-900/20 hover:text-red-300 rounded-lg transition-colors">

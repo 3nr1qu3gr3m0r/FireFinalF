@@ -45,13 +45,6 @@ export const MENU_ITEMS = [
     allowedRoles: ['admin', 'recepcionista'] 
   },
   { 
-    key: 'alta-usuario', 
-    label: 'Alta Usuario', 
-    href: '/admin/alta-usuario', 
-    icon: 'fas fa-user-plus', 
-    allowedRoles: ['admin', 'recepcionista'] 
-  },
-  { 
     key: 'paquetes', 
     label: 'Planes', 
     href: '/admin/paquetes', 

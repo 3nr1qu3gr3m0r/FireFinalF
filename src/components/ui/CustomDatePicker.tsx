@@ -6,18 +6,18 @@ interface DatePickerProps {
   value: string;
   onChange: (date: string) => void;
   placeholder?: string;
-  direction?: "up" | "down"; // 👈 Nueva opción (Opcional)
+  direction?: "up" | "down";
+  events?: string[]; // 👈 NUEVA PROPIEDAD: Lista de fechas (YYYY-MM-DD)
 }
 
 const DAYS = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"];
 const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-export default function CustomDatePicker({ label, value, onChange, placeholder = "Seleccionar fecha...", direction = "down" }: DatePickerProps) {
+export default function CustomDatePicker({ label, value, onChange, placeholder = "Seleccionar fecha...", direction = "down", events = [] }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [currentDate, setCurrentDate] = useState(new Date()); 
   
-  // 🔧 FIX: Evita que el componente desaparezca por diferencias de hora
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => setIsMounted(true), []);
 
@@ -52,7 +52,7 @@ export default function CustomDatePicker({ label, value, onChange, placeholder =
 
   const renderCalendarDays = () => {
     const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
+    const month = currentDate.getMonth(); // 0-11
     const totalDays = getDaysInMonth(year, month);
     const firstDay = getFirstDayOfMonth(year, month);
     const blanks = Array(firstDay).fill(null);
@@ -62,11 +62,31 @@ export default function CustomDatePicker({ label, value, onChange, placeholder =
       <div className="grid grid-cols-7 gap-1 mt-2 justify-items-center">
         {[...blanks, ...days].map((day, i) => {
           if (!day) return <div key={i} className="h-8 w-8"></div>;
-          const isSelected = value === `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+          
+          const dateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+          const isSelected = value === dateStr;
+
+          // 👇 LÓGICA DE EVENTOS (CUMPLEAÑOS)
+          // Verificamos si este día/mes coincide con algún evento (ignorando el año de nacimiento)
+          const hasEvent = events.some(eventDate => {
+              if(!eventDate) return false;
+              const [_, m, d] = eventDate.split('-').map(Number);
+              return m === (month + 1) && d === day;
+          });
+
           return (
             <button key={i} type="button" onClick={() => handleSelectDate(day)}
-              className={`h-8 w-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium transition-all ${isSelected ? "bg-[#FF3888] text-white shadow-lg shadow-pink-500/50 scale-105" : "text-gray-300 hover:bg-gray-700 hover:text-white active:scale-95"}`}>
+              className={`h-8 w-8 rounded-full flex flex-col items-center justify-center text-xs sm:text-sm font-medium transition-all relative
+                ${isSelected 
+                    ? "bg-[#FF3888] text-white shadow-lg shadow-pink-500/50 scale-105" 
+                    : "text-gray-300 hover:bg-gray-700 hover:text-white active:scale-95"
+                }`}
+            >
               {day}
+              {/* 👇 PUNTITO INDICADOR */}
+              {hasEvent && !isSelected && (
+                  <span className="w-1 h-1 bg-yellow-400 rounded-full absolute bottom-1"></span>
+              )}
             </button>
           );
         })}
@@ -74,7 +94,6 @@ export default function CustomDatePicker({ label, value, onChange, placeholder =
     );
   };
 
-  // Si no está montado, mostramos placeholder para evitar saltos
   if (!isMounted) return <div className="w-full h-16 animate-pulse bg-gray-800/50 rounded-xl"></div>;
 
   const displayValue = value ? new Date(value + "T00:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : "";
@@ -91,7 +110,6 @@ export default function CustomDatePicker({ label, value, onChange, placeholder =
       </div>
 
       {isOpen && (
-        // 👇 AQUÍ USAMOS LA VARIABLE: Si es 'up' va bottom-full, si es 'down' va top-full
         <div className={`absolute left-0 w-full sm:w-72 bg-[#1E293B] border border-gray-700 rounded-2xl shadow-2xl z-50 p-4 animate-in fade-in zoom-in-95 duration-200 
             ${direction === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'} 
         `}>

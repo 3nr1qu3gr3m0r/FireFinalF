@@ -1,21 +1,35 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation"; // 👈 Agregamos useSearchParams
+import Cookies from "js-cookie";
 
 export default function BottomNav() {
   const pathname = usePathname() || "";
-  const [userRole, setUserRole] = useState<string>('alumno');
+  const searchParams = useSearchParams(); // 👈 Hook para leer la URL
+  
+  const [userRole, setUserRole] = useState<string>('alumno'); // Rol del usuario LOGUEADO (Admin/Recepcionista)
   const [isMounted, setIsMounted] = useState(false);
+
+  // 👇 Leemos el tipo de usuario que estamos VIENDO (desde la URL)
+  // Ejemplo URL: /admin/students/2?type=recepcionista
+  const viewedUserType = searchParams.get('type'); 
 
   useEffect(() => {
     setIsMounted(true);
-    const storedUser = localStorage.getItem('usuario');
-    if (storedUser) {
+    const token = Cookies.get("token");
+    if (token) {
         try {
-            const parsed = JSON.parse(storedUser);
-            setUserRole(parsed.rol || 'alumno');
-        } catch (e) { console.error("Error leyendo usuario"); }
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            const decoded = JSON.parse(jsonPayload);
+            setUserRole((decoded.rol || decoded.role || '').toLowerCase());
+        } catch (e) { 
+            console.error("Error leyendo rol del token"); 
+        }
     }
   }, []);
 
@@ -25,8 +39,9 @@ export default function BottomNav() {
 
   const navClasses = "fixed bottom-0 left-0 w-full z-40 bg-gradient-to-l from-[#0A1D37] to-[#C4006B] border-t border-gray-700/50 pb-safe shadow-[0_-5px_20px_rgba(0,0,0,0.5)]";
 
-  // --- 0. SECCIÓN ALUMNO ---
-  if (pathname.includes('/admin/students/')) {
+  // --- 0. SECCIÓN ALUMNO (Perfil, Ventas, Reservas...) ---
+  // 👇 CONDICIÓN CLAVE: Solo mostramos este menú si NO es recepcionista
+  if (pathname.includes('/admin/students/') && viewedUserType !== 'recepcionista' && viewedUserType !== 'admin') {
     const parts = pathname.split('/');
     const studentId = parts[3]; 
     const baseUrl = `/admin/students/${studentId}`;
@@ -35,14 +50,20 @@ export default function BottomNav() {
         { name: 'Perfil', path: baseUrl, icon: 'fa-user' },
         { name: 'Ventas', path: `${baseUrl}/payments`, icon: 'fa-cart-plus' }, 
         { name: 'Reservas', path: `${baseUrl}/bookings`, icon: 'fa-calendar-alt' },
-        { name: 'Logros', path: `${baseUrl}/gamification`, icon: 'fa-medal' },
     ];
+
+    if (userRole === 'admin') {
+        tabs.push({ name: 'Logros', path: `${baseUrl}/gamification`, icon: 'fa-medal' });
+    }
 
     return (
         <footer className={navClasses}>
             <div className="flex justify-around items-center h-16 max-w-3xl mx-auto px-2">
                 {tabs.map((tab) => {
-                    const isTabActive = tab.path === baseUrl ? pathname === baseUrl : pathname.startsWith(tab.path);
+                    const isTabActive = tab.path === baseUrl 
+                        ? pathname === baseUrl 
+                        : pathname.startsWith(tab.path);
+
                     return (
                         <Link key={tab.path} href={tab.path} className={`flex flex-col items-center justify-center w-full h-full transition-all duration-300 active:scale-90 group ${isTabActive ? 'text-white -translate-y-1' : 'text-white/70 hover:text-white'}`}>
                             <i className={`fas ${tab.icon} text-xl mb-1 transition-colors ${isTabActive ? 'drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]' : ''}`}></i>
@@ -55,9 +76,9 @@ export default function BottomNav() {
     );
   }
 
-  // --- 1. SECCIÓN TIENDA (SOLO PARA ADMIN) ---
-  // Si eres admin y estás en tienda, ves el submenú de tienda.
-  // Si eres recepcionista, ESTO SE IGNORA y cae al default del final.
+  // ... (El resto de tus menús SE QUEDAN IGUAL) ...
+
+  // --- 1. SECCIÓN TIENDA ---
   if (pathname.includes('/admin/tienda') && userRole === 'admin') {
     return (
       <footer className={navClasses}>
@@ -94,7 +115,7 @@ export default function BottomNav() {
     );
   }
 
-  // --- 4. SECCIÓN MOVIMIENTOS ---
+  // --- 4. MOVIMIENTOS ---
   if (pathname.includes('/admin/consultas') || pathname.includes('/admin/ingresos-egresos')) {
     return (
       <footer className={navClasses}>
@@ -106,7 +127,7 @@ export default function BottomNav() {
     );
   }
 
-  // --- 5. SECCIÓN CLASES ---
+  // --- 5. CLASES ---
   if (pathname.includes('/admin/clases')) {
     return (
       <footer className={navClasses}>
@@ -119,7 +140,7 @@ export default function BottomNav() {
     );
   }
 
-  // --- 6. SECCIÓN XV AÑOS ---
+  // --- 6. XV AÑOS ---
   if (pathname.includes('/admin/xv-anos')) {
     return (
       <footer className={navClasses}>
@@ -132,12 +153,10 @@ export default function BottomNav() {
     );
   }
 
-  // --- 7. DASHBOARD DEFAULT (Aquí cae la Recepcionista en Tienda) ---
+  // --- 7. DASHBOARD DEFAULT (Aquí caerá el Recepcionista al ver su perfil) ---
   const storeLink = userRole === 'recepcionista' ? "/admin/tienda/ventas" : "/admin/tienda";
   const storeIcon = userRole === 'recepcionista' ? "fa-cash-register" : "fa-store";
   const storeLabel = userRole === 'recepcionista' ? "Registrar venta (tienda)" : "Tienda";
-
-  // Lógica para saber si el botón "Tienda/Vender" debe estar activo visualmente
   const isStoreActive = pathname.startsWith("/admin/tienda");
 
   return (

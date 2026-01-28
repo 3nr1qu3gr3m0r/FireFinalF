@@ -68,35 +68,30 @@ export default function RegistrarVisitanteModal({ isOpen, onClose }: ModalProps)
       setPaymentMethod("Efectivo");
       setLoadingClasses(true);
       
+      // ✅ CORRECCIÓN: fetchWithAuth devuelve data directa, no un Response para hacer .json()
       fetchWithAuth('/classes') 
-        .then(res => res.json())
         .then(data => {
             if (!Array.isArray(data)) return;
             
-            // 👇 LÓGICA DE INTERVALOS CORREGIDA (Matemática)
+            // 👇 LÓGICA DE INTERVALOS
             const availableClasses = data.filter((c: any) => {
                 if (!c.fecha_inicio || c.dias_repeticion === undefined) return false;
 
-                // 1. Normalizar fechas a las 00:00:00
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
 
-                // Parsear fecha inicio (YYYY-MM-DD)
                 const [year, month, day] = c.fecha_inicio.toString().split('-').map(Number);
                 const startDate = new Date(year, month - 1, day);
                 startDate.setHours(0, 0, 0, 0);
 
-                // 2. Si la clase empieza en el futuro, ocultar
                 if (today.getTime() < startDate.getTime()) return false;
 
-                // 3. Calcular diferencia de días
                 const diffTime = today.getTime() - startDate.getTime();
                 const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                 const interval = Number(c.dias_repeticion);
 
-                // 4. Verificar si toca hoy
-                if (interval === 0) return diffDays === 0; // Clase única
-                return diffDays % interval === 0; // Intervalo periódico
+                if (interval === 0) return diffDays === 0;
+                return diffDays % interval === 0;
             }).map((c: any) => ({
                 id: c.id,
                 name: c.nombre,
@@ -109,7 +104,10 @@ export default function RegistrarVisitanteModal({ isOpen, onClose }: ModalProps)
                 
             setClasses(availableClasses);
         })
-        .catch(err => console.error(err))
+        .catch(err => {
+            console.error(err);
+            // Si falla silenciosamente o muestra alerta opcional
+        })
         .finally(() => setLoadingClasses(false));
     }
   }, [isOpen]);
@@ -211,30 +209,27 @@ export default function RegistrarVisitanteModal({ isOpen, onClose }: ModalProps)
                 tipo: 'clase',
                 id_referencia: item.id,
                 cantidad: 1,
-                // Agregamos precio_final para soportar descuentos en visitantes
                 precio_final: item.discountType === "%" 
                     ? item.price * (1 - item.discount / 100) 
                     : item.price - item.discount
             }))
         };
 
+        // ✅ CORRECCIÓN: fetchWithAuth devuelve la respuesta parseada o lanza error
         const res = await fetchWithAuth('/sales', {
             method: 'POST',
             body: JSON.stringify(saleData)
         });
 
-        if (res.ok) {
-            showAlert(`✅ Venta registrada (Total: $${totalAmount.toFixed(2)})`, "success");
-            setTimeout(() => {
-                onClose();
-            }, 2000);
-        } else {
-            const errorData = await res.json();
-            showAlert(`❌ Error: ${errorData.message || 'No se pudo registrar'}`, "error");
-        }
-    } catch (error) {
+        // Si fetchWithAuth no lanza error, significa que fue exitoso
+        showAlert(`✅ Venta registrada (Total: $${totalAmount.toFixed(2)})`, "success");
+        setTimeout(() => {
+            onClose();
+        }, 2000);
+
+    } catch (error: any) {
         console.error(error);
-        showAlert("Error de conexión", "error");
+        showAlert(`❌ Error: ${error.message || 'No se pudo registrar'}`, "error");
     } finally {
         setLoading(false);
     }

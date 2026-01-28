@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 
 // 1. RUTAS EXCLUSIVAS DE ADMIN (Bloquean a Recepcionistas)
 const ADMIN_ONLY_ROUTES = [
-  '/admin/tienda', // Ojo: Esto bloquea por defecto todo lo que empiece así
+  '/admin/tienda', 
   '/admin/paquetes',
   '/admin/niveles',
   '/admin/insignias',
@@ -11,7 +11,6 @@ const ADMIN_ONLY_ROUTES = [
 ];
 
 // 2. EXCEPCIONES: Rutas que SÍ pueden ver los Recepcionistas
-// (Aunque empiecen con una ruta bloqueada, las dejamos pasar)
 const RECEPTIONIST_EXCEPTIONS = [
   '/admin/tienda/ventas', 
 ];
@@ -29,7 +28,7 @@ export function middleware(request: NextRequest) {
     }
 
     try {
-      // B. Decodificar Token
+      // B. Decodificar Token (Manual, sin librerías externas)
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
       const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
@@ -37,15 +36,23 @@ export function middleware(request: NextRequest) {
       }).join(''));
       
       const payload = JSON.parse(jsonPayload);
-      const userRole = payload.rol;
+      const userRole = (payload.rol || payload.role || '').toLowerCase(); // Normalizamos
 
       // C. REGLA DE ORO 1: Los ALUMNOS nunca entran a /admin
       if (userRole === 'alumno') {
         return NextResponse.redirect(new URL('/alumno/dashboard', request.url));
       }
 
-      // D. REGLA DE ORO 2: Validar permisos de Recepcionista
+      // D. VALIDACIÓN DE RECEPCIONISTA (NO ADMIN)
       if (userRole !== 'admin') {
+         
+         // 🔒 REGLA ESPECÍFICA: Gamificación es SOLO para admin
+         // Bloqueamos cualquier ruta que termine en /gamification dentro de /admin
+         if (pathname.includes('/gamification')) {
+             return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+         }
+
+         // REGLAS GENERALES
          const isRestricted = ADMIN_ONLY_ROUTES.some(route => pathname.startsWith(route));
          const isException = RECEPTIONIST_EXCEPTIONS.some(route => pathname.startsWith(route));
 
